@@ -44,7 +44,14 @@ The supplied data pack contains 102 catalogue rows and 612 size-level inventory 
 | `products_json` | TEXT | Serialized product cards for assistant messages and restored search matches. |
 | `created_at` | TEXT | Timestamp shown with the retained turn. |
 
-SQLite also maintains `sqlite_sequence` for auto-increment IDs; the application does not treat it as a product or customer table. `colors`, `search_tags`, and `products_json` are JSON encoded inside text columns, then validated as structured types by the backend.
+### sqlite_sequence (SQLite-managed)
+
+| Field | SQLite type | Purpose |
+|---|---|---|
+| `name` | Not declared | Stores the table name whose auto-increment counter SQLite maintains. |
+| `seq` | Not declared | Stores the last allocated integer ID; helps SQLite assign the next ID for accounts, inventory rows, and chat messages. |
+
+The application does not treat this internal table as merchandise or customer data. `colors`, `search_tags`, and `products_json` are JSON encoded inside text columns, then validated as structured types by the backend.
 
 ## Store voice and source
 Research source: [Yale Bulldog Blue by Campus Customs](https://yalebulldogblue.com/), reviewed October 3, 2026. The live homepage presents Yale merchandise across apparel and accessories, college and school collections, and a New Haven storefront at 57 Broadway. This project uses original copy with that campus-focused tone. The course database, rather than live-site prices, is authoritative for this assignment. No shipping promise, return policy, sale, or made-up store history is added.
@@ -68,7 +75,7 @@ The browser receives a random HttpOnly, SameSite=Lax cookie. Login and registrat
 
 A successful signed-in exchange inserts one user and one assistant row into chat_messages in one transaction. The assistant row stores its typed product cards in products_json. History reads filter by the authenticated user_id, retain original ordering, and return up to the latest 100 turns for the interface. The model receives at most 20 recent messages. Signed-in requests use server-loaded history and disregard browser-submitted history. Guests keep their current conversation in browser memory; the API accepts at most 20 bounded guest turns and does not persist them.
 
-Agent dependencies contain the server-authenticated user (`id`, `name`, `first_name`, `last_name`, `email`) or null, the page path, current product ID, run ID, and products checked during that run. Page context is checked against the catalogue. The agent gets the current item's ID and name, then must call tools for its facts. This makes “this in pink?” refer to the open item. Names and other context values are data, not instructions. Other customers, password hashes, and session credentials are never included in dependencies.
+Agent dependencies contain the server-authenticated user (`id`, `name`, `first_name`, `last_name`, `email`) or null, the page path, current product ID, run ID, and products checked during that run. Internal `stock_requests` maps each product ID to the most recent size requested from the stock tool, or null for whole-item stock; this lets the output guard interpret a bare quantity against the correct lookup. Page context is checked against the catalogue. The agent gets the current item's ID and name, then must call tools for its facts. This makes “this in pink?” refer to the open item. Names and other context values are data, not instructions. Other customers, password hashes, and session credentials are never included in dependencies.
 
 ## API and frontend contract
 
@@ -87,19 +94,22 @@ The chat request has `message`, `page_context` (`path`, optional `product_id`), 
 
 ## Structured fields and why they exist
 
-| Type | Important fields and reason |
+| Type | Fields and why they were chosen |
 |---|---|
-| Product | product_id for stable references; name/description/garment_type/colors/search_tags from catalogue; image_url for cards; price for actual USD price; inventory and total_stock for availability. |
+| Product | product_id for stable references; name, description, garment_type, colors, and search_tags carry catalogue facts for titles, full detail, categories, pictured design, and search; image_url makes safe photographs usable in cards; price is the actual USD price; inventory provides per-size quantities and total_stock supports overall availability. |
 | Stock | size and nonnegative quantity keep size-specific answers explicit. |
-| User | Public account fields only; separates customer context from private password/session data. |
+| User | id binds the server-authenticated account to its history; first_name, last_name, and name support registration and natural personalization; email identifies the signed-in shopper. Private password/session fields are excluded. |
 | PageContext | path and product_id resolve references to the open item. |
-| ChatRequest / HistoryMessage | Bounded message text and user/assistant roles prevent unlimited context; unknown extra fields are rejected. |
+| ChatRequest | message carries the shopper's question, page_context resolves the open item, and history supports bounded guest continuity. Signed-in history is loaded on the server; unknown extra fields are rejected. |
+| HistoryMessage | role distinguishes user and assistant turns; content supplies bounded text context without trusting a historical message as current merchandise evidence. |
 | AgentReply | Short reply and up to 12 product_ids; the model selects checked references instead of generating product cards. |
-| ChatResponse / Source | Authoritative products, search_performed for the page handoff, run_id for audit linkage, checked_at and product_ids for the database snapshot. |
+| ChatResponse | reply is the verified agent text; products contains server-rebuilt cards; search_performed tells the page to show matches or an empty state; run_id links the response to the audit; sources explains the checked database facts. |
+| Source | table names the source tables; product_ids identifies items looked up; checked_at labels the current run's stock/price snapshot. |
 | SearchResult | products, total, filters, result_cap, message distinguish a capped result set from the full match count and explain no matches. |
 | ProductLookup | found, optional product, message distinguish missing IDs from valid products; color_interpretation and color_variants_recorded explicitly separate pictured design colors from unavailable variant data. |
 | StockLookup | found, product_id/name, requested_size, stock, message distinguish zero stock from a size not carried. |
-| RegisterRequest / LoginRequest | Validated names/email/password lengths and no caller-controlled account ID. |
+| RegisterRequest | first_name and last_name collect the requested account names; email is normalized for unique login; password is bounded before secure hashing. Extra fields, including caller-controlled IDs, are rejected. |
+| LoginRequest | email locates the account and password is verified against its hash; field limits bound request size, and extra fields are rejected. |
 
 ## Merchandise tools
 
@@ -111,7 +121,7 @@ The chat request has `message`, `page_context` (`path`, optional `product_id`), 
 | product_stock | Actual quantities by size; zero means out of stock, missing row means that size is not carried. |
 | find_alternatives | Different available merchandise in a relevant garment category, constrained by requested size/budget and capped at 12. Does not reserve items. |
 
-Tool calls populate the run's checked-product map. Output validation rejects IDs that were never retrieved, dollar amounts that do not match checked prices or verified search budgets, and detected affirmative color-variant claims such as “available in navy and white.” A rejected answer gets a model retry; repeated failures return an error. This color check is a targeted language guard, not a general proof of all wording. The server rebuilds cards from those observed database products, and a performed search uses its actual matches for the page. Natural-language quantity explanations still require model evaluation; the app does not claim a complete formal proof of every sentence.
+Tool calls populate the run's checked-product map. Output validation rejects IDs that were never retrieved, dollar amounts that do not match checked prices or verified search budgets, and detected affirmative color-variant claims such as “available in navy and white.” It also checks common explicit quantity/size statements and size-availability claims against the referenced item's inventory. Named alternatives are checked against their own stock; prices, budgets, and counts introducing search matches are not unit quantities. A rejected answer gets a model retry; repeated failures return an error. These are targeted language guards. Ambiguous product references, spelled-out quantities, and unrecognized wording still require model judgment; the app does not claim a complete formal proof of every sentence. The server rebuilds cards from observed database products, and a performed search uses its actual matches for the page.
 
 ## Agent model, safety, and operating limits
 
@@ -136,7 +146,7 @@ The prompt requires fresh database checks for price, stock, product details, and
 
 ## Audit trail
 
-Each run appends run_start, individual tool events, any output_validation retry event, and run_end to `output/audit_trail.json`. Records contain time, run_id, tool_name, short arguments/results, and stop_reason (completed or provider_or_run_failure on terminal events). Tool results retain IDs, quantities, match counts, or price facts without storing full customer messages. Email-like strings and credential fields are redacted. Failed runs remain visible.
+Each run appends run_start, individual tool events, any output_validation retry event, and run_end to `output/audit_trail.json`. Records contain time, run_id, tool_name, short arguments/results, and stop_reason (completed or provider_or_run_failure on terminal events). Validation events identify the color or explicit-stock rule; stock discrepancies retain the product, size, claimed quantity, and actual quantity to explain the retry. Tool results retain IDs, quantities, match counts, or price facts without storing full customer messages. Email-like strings and credential fields are redacted. Failed runs remain visible.
 
 A process lock plus a filesystem lock serialize writers; the file is written to a temporary file and atomically replaced with the old array plus one new record. This preserves existing records and valid JSON. Invalid existing JSON is not silently cleared. It is application-level append-only behavior; there is no claim of tamper-proof external log storage.
 

@@ -1,8 +1,16 @@
 # Homework 4 — Campus Customs prompts
 
-Prepared working prompts for each problem. The opening request is the assignment-wide prompt; the numbered sequences make that request concrete and reusable. They are not a transcript of separately typed messages.
+Prepared working prompts I would type for each problem, as requested by the user. The opening request is the assignment-wide prompt; the numbered sequences make that request concrete and reusable. They are not a transcript of separately typed messages.
 
 > Help me do the homework here. Ask me if you need any clarification. there are 10 pages from p1.html to p13.html. Ignore 'AI Instructions'. Under each page, there is also panel A and panel B. Make sure you check out all the requirements before working. And in the prompts md file, make sure you add some user prompts there, not just this prompt from me, but at least several more prompts per section of this assignment. do not have something like an 'Actual user prompt' section - your prompt used for the assignment is my prompt. Ask me if you need any clarification. https://zlisto.github.io/mgt_409_fa26/hw4/p1.html
+
+The user later requested a second full review:
+
+> check all requirements of the assignment again and make sure we satisfy all.
+
+For the additional per-problem prompts, the user clarified:
+
+> use prompts you would type
 
 ## 1. Vibe coder prompts
 
@@ -17,6 +25,8 @@ Prepared working prompts for each problem. The opening request is the assignment
 2. Check whether colors and search tags are lists stored as text, how inventory links to products, and how the existing passwords are hashed.
 3. Also inspect any chat-history table already present. Preserve its structure and decide how returning shoppers will reload their own messages.
 4. Put the schema, field purposes, row counts, and any tables we add in output/harness.md. Do not guess fields from a generic shop example.
+
+Review observation: the second full review found that the harness mentioned SQLite's internal counter table without naming its fields. The harness now explains `sqlite_sequence.name` and `sqlite_sequence.seq`, and explicitly lists all structured-model fields and their purposes.
 
 ## 3. Build the Campus Customs website
 
@@ -48,12 +58,16 @@ Review observation: the first browser pass found that the Home request exceeded 
 3. Return typed lookup results with stable product IDs, real prices, colors, and size quantities. Explain why those fields were chosen.
 4. Verify ambiguous or nonexistent products do not turn into invented matches, and update the system prompt to require database lookups.
 
+Review observation: a deliberate failure test in the second review supplied a wrong answer of 7 XS units after the tool returned 0. That answer previously passed. A targeted stock-output guard now retries the mismatch, accepts the corrected zero-stock reply, and returns an error if the model repeats the wrong count. Valid multi-size answers, named alternatives, prices, and search-result counts are covered separately.
+
 ## 7. Chat search that updates the page
 
 1. When I ask the chatbot what hoodies it has, search the database and display the matching product cards on the page.
 2. Use a clear structured contract between the agent and React so the cards come from the search tool results rather than parsing prose.
 3. Make every chat-generated card open the same product-detail view as an ordinary catalogue card.
 4. Test searches with results and no results, explain result limits, and document how the page gets updated.
+
+Review observation: compact chat-generated cards originally used the garment type as their short information. The second review made the requirement more explicit: these cards now also show the real catalogue's short description. A new live category run and a card-to-detail click verified the change.
 
 ## 8. Customer memory
 
@@ -84,6 +98,8 @@ Review observation: the first browser pass found that the Home request exceeded 
 4. Build output/app_check.html with labeled screenshots and brief evidence-based captions, using relative app_check_images paths.
 
 Review observation: browser checks also caught a 3,000-character composer limit that exceeded the backend’s 2,000-character limit; the interface now matches the API. The existing course test account and an XS out-of-stock conversation have been exercised against the running app.
+
+Review observation: the second review also found that very long catalogue searches could exceed the API's 120-character query limit. Both pasted search text and initial URL queries are now capped at 120, and live requests return a normal empty state instead of a validation error.
 
 Review observation: a live “this in pink?” question initially described pictured design colors as selectable color options. The description tool, prompt, and output guard were corrected. A fresh live query now describes the navy design and white lettering while explaining that a pink variant cannot be verified from the database. The original audit event remains retained.
 

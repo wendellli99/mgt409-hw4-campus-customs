@@ -29,7 +29,7 @@ function ProductCard({ product, compact = false }: { product: Product; compact?:
     <div className="product-photo"><ProductImage product={product} /><span className="view-product" aria-hidden="true"><ArrowRight size={18} /></span>{product.total_stock === 0 && <span className="stock-badge">Out of stock</span>}</div>
     <div className="product-meta"><span>{product.garment_type}</span><span>{money(product.price)}</span></div>
     <h3>{product.name}</h3>
-    {!compact && <p>{product.description}</p>}
+    <p>{product.description}</p>
   </Link>;
 }
 
@@ -76,14 +76,14 @@ function Home() {
 type Filters = { q: string; category: string; size: string; in_stock: boolean; max_price: string; sort: string; offset: number };
 function Products() {
   const [searchParams] = useSearchParams();
-  const [filters, setFilters] = useState<Filters>({ q: searchParams.get('q') || '', category: '', size: '', in_stock: false, max_price: '', sort: 'featured', offset: 0 });
+  const [filters, setFilters] = useState<Filters>({ q: (searchParams.get('q') || '').slice(0, 120), category: '', size: '', in_stock: false, max_price: '', sort: 'featured', offset: 0 });
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [attempt, setAttempt] = useState(0);
-  useEffect(() => { setFilters(f => ({ ...f, q: searchParams.get('q') || '', offset: 0 })); }, [searchParams]);
+  useEffect(() => { setFilters(f => ({ ...f, q: (searchParams.get('q') || '').slice(0, 120), offset: 0 })); }, [searchParams]);
   const update = (change: Partial<Filters>) => setFilters(f => ({ ...f, ...change, offset: 0 }));
   useEffect(() => {
     const controller = new AbortController(); setLoading(true); setError('');
@@ -97,7 +97,7 @@ function Products() {
   const active = !!(filters.q || filters.category || filters.size || filters.in_stock || filters.max_price);
   return <section className="catalogue-page page-width"><div className="page-intro"><span className="eyebrow">FIND YOUR CAMPUS CLASSIC</span><h1>The collection.</h1><p>Layers for lecture. Colors for game day. Yale for every day.</p></div>
     <div className="catalogue-toolbar"><div className="filter-title"><SlidersHorizontal size={18} /><span>Make it yours</span>{active && <button className="text-button clear-filters" onClick={() => setFilters({ q: '', category: '', size: '', in_stock: false, max_price: '', sort: 'featured', offset: 0 })}>Reset filters</button>}</div>
-      <div className="filter-row"><label className="search-field"><Search size={19} /><span className="sr-only">Search products</span><input placeholder="Search the collection…" value={filters.q} onChange={e => update({ q: e.target.value })} /></label><label>Category<select value={filters.category} onChange={e => update({ category: e.target.value })}><option value="">All categories</option>{categories.map(c => <option key={c} value={c}>{c}</option>)}</select></label><label>Size<select value={filters.size} onChange={e => update({ size: e.target.value })}><option value="">Any size</option>{['XS', 'S', 'M', 'L', 'XL', 'XXL', 'One Size'].map(s => <option key={s}>{s}</option>)}</select></label><label>Price<select value={filters.max_price} onChange={e => update({ max_price: e.target.value })}><option value="">Any price</option><option value="40">Up to $40</option><option value="70">Up to $70</option><option value="100">Up to $100</option></select></label><label>Sort by<select value={filters.sort} onChange={e => update({ sort: e.target.value })}><option value="featured">Featured</option><option value="price_asc">Price: low to high</option><option value="price_desc">Price: high to low</option><option value="name">Name: A to Z</option></select></label></div>
+      <div className="filter-row"><label className="search-field"><Search size={19} /><span className="sr-only">Search products</span><input placeholder="Search the collection…" maxLength={120} value={filters.q} onChange={e => update({ q: e.target.value })} /></label><label>Category<select value={filters.category} onChange={e => update({ category: e.target.value })}><option value="">All categories</option>{categories.map(c => <option key={c} value={c}>{c}</option>)}</select></label><label>Size<select value={filters.size} onChange={e => update({ size: e.target.value })}><option value="">Any size</option>{['XS', 'S', 'M', 'L', 'XL', 'XXL', 'One Size'].map(s => <option key={s}>{s}</option>)}</select></label><label>Price<select value={filters.max_price} onChange={e => update({ max_price: e.target.value })}><option value="">Any price</option><option value="40">Up to $40</option><option value="70">Up to $70</option><option value="100">Up to $100</option></select></label><label>Sort by<select value={filters.sort} onChange={e => update({ sort: e.target.value })}><option value="featured">Featured</option><option value="price_asc">Price: low to high</option><option value="price_desc">Price: high to low</option><option value="name">Name: A to Z</option></select></label></div>
       <div className="filter-bottom"><label className="checkbox-label"><input type="checkbox" checked={filters.in_stock} onChange={e => update({ in_stock: e.target.checked })} /> In stock only</label><span role="status">{loading ? 'Finding your favorites…' : `${total} ${total === 1 ? 'piece' : 'pieces'} in the collection`}</span></div>
     </div>
     {error ? <ErrorState text={error} retry={() => setAttempt(x => x + 1)} /> : loading && !products.length ? <SkeletonCards /> : !products.length ? <div className="empty-state"><Search size={30} /><h2>No pieces found.</h2><p>Try a broader search or remove a filter to discover something new.</p><button className="button button-navy" onClick={() => setFilters({ q: '', category: '', size: '', in_stock: false, max_price: '', sort: 'featured', offset: 0 })}>Explore all products <ArrowRight size={18} /></button></div> : <div className={`product-grid catalogue-grid ${loading ? 'is-loading' : ''}`} aria-busy={loading}>{products.map(p => <ProductCard product={p} key={p.product_id} />)}</div>}

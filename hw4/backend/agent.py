@@ -45,6 +45,7 @@ class ShopDeps:
     checked_at: str = field(default_factory=tools.now)
     tool_calls: int = 0
     verified_budgets: set[float] = field(default_factory=set)
+    stock_requests: dict[str, str | None] = field(default_factory=dict)
 
 
 class AgentUnavailable(Exception):
@@ -85,6 +86,108 @@ def unsupported_color_variant_claim(reply: str, products: list[Product]) -> bool
         if not re.search(r"(?:not|isn't|aren't)\s+$",prefix,re.I):
             return True
     return False
+
+
+_SIZE_TEXT = r'(?:extra[- ]extra[- ]large|extra[- ]small|extra[- ]large|XXXL|XXL|XXS|XS|XL|small|medium|large|S|M|L)'
+_QUANTITY_TEXT = r'(?<![\w.$])\d{1,5}(?![\w.])'
+_STOCK_WORDS = r'(?:in stock|available|left|remaining|on hand)'
+_UNITS = r'(?:(?:units?|pieces?|items?)\s+)?'
+
+
+def _size_key(value: str) -> str:
+    aliases={'extra small':'XS','extra large':'XL','extra extra large':'XXL',
+             'small':'S','medium':'M','large':'L'}
+    return aliases.get(value.lower().replace('-',' '),value.upper())
+
+
+def _claim_product(reply: str, start: int, end: int, products: dict[str,Product]) -> Product | None:
+    """Resolve an explicit/preceding unambiguous checked product name, or one item."""
+    aliases={}
+    for product in products.values():
+        names={product.name,product.product_id.replace('-',' '),re.sub(r'\s+\d+$','',product.name)}
+        for name in names:
+            tokens=re.findall(r'\w+',name.lower())
+            if not tokens:continue
+            key=tuple(tokens)
+            aliases.setdefault(key,set()).add(product.product_id)
+    mentions=[]
+    for tokens,ids in aliases.items():
+        if len(ids)!=1:continue
+        pattern=r'(?<!\w)'+r'[^\w]+'.join(re.escape(token) for token in tokens)+r'(?!\w)'
+        for match in re.finditer(pattern,reply,re.I):
+            mentions.append((match.start(),match.end(),next(iter(ids))))
+    clause_start=max(reply.rfind(separator,0,start) for separator in '.;\n')+1
+    ends=[reply.find(separator,end) for separator in '.;\n']
+    clause_end=min([position for position in ends if position>=0] or [len(reply)])
+    local=[m for m in mentions if m[0]>=clause_start and m[1]<=clause_end]
+    if local:
+        distances=[(max(start-m[1],m[0]-end,0),m[2]) for m in local]
+        nearest=min(distance for distance,_ in distances)
+        ids={pid for distance,pid in distances if distance==nearest}
+        return products[next(iter(ids))] if len(ids)==1 else None
+    preceding=[m for m in mentions if m[1]<=start]
+    if preceding:
+        nearest=max(m[1] for m in preceding)
+        ids={m[2] for m in preceding if m[1]==nearest}
+        return products[next(iter(ids))] if len(ids)==1 else None
+    return next(iter(products.values())) if len(products)==1 else None
+
+
+def stock_grounding_issues(reply: str, deps: ShopDeps) -> list[dict]:
+    """Check common explicit digit/size stock claims against the referenced item.
+
+    This checks ordinary stock wording, not all possible prose. Ambiguous product
+    references are left to the agent rather than matched to a different alternative.
+    Currency/decimal amounts are excluded so prices and budgets are not quantities.
+    """
+    pairs=[
+        rf'\b(?P<size>{_SIZE_TEXT})\b\s*(?:(?:has|have|is|are|with)\s+|[:=—–-]\s*)?(?P<quantity>{_QUANTITY_TEXT})',
+        rf'(?P<quantity>{_QUANTITY_TEXT})\s+{_UNITS}{_STOCK_WORDS}\s+(?:in|for|of)\s+(?:size\s+)?(?P<size>{_SIZE_TEXT})\b',
+        rf'(?P<quantity>{_QUANTITY_TEXT})\s+(?:units?\s+)?(?:in\s+(?:size\s+)?)?(?P<size>{_SIZE_TEXT})\b\s+(?:units?\s+)?{_STOCK_WORDS}',
+        rf'\b(?:have|has|there are|there is)\s+(?P<quantity>{_QUANTITY_TEXT})\s+{_UNITS}(?:in|of)\s+(?:size\s+)?(?P<size>{_SIZE_TEXT})\b',
+    ]
+    claims=[]
+    for pattern in pairs:
+        for match in re.finditer(pattern,reply,re.I):
+            claims.append((match.start(),match.end(),_size_key(match['size']),int(match['quantity'])))
+    # A bare quantity can use the most recent size requested for an unambiguous
+    # product; a whole-product stock lookup instead compares total inventory.
+    for match in re.finditer(rf'(?P<quantity>{_QUANTITY_TEXT})\s+{_UNITS}{_STOCK_WORDS}\b',reply,re.I):
+        if not any(start<=match.start()<end for start,end,_,_ in claims):
+            claims.append((match.start(),match.end(),None,int(match['quantity'])))
+    issues=[]
+    for start,end,size,quantity in claims:
+        prefix=reply[max(0,start-45):start]
+        if deps.search_performed and re.search(r'(?:here (?:are|is)|(?:i |we )?(?:found|showing|show))\s+$',prefix,re.I):
+            continue  # This introduces matching cards, not per-product unit inventory.
+        product=_claim_product(reply,start,end,deps.checked)
+        if product is None:
+            if not deps.checked:issues.append({'rule':'unverified_stock_quantity','claimed':quantity})
+            continue
+        if size is None:size=deps.stock_requests.get(product.product_id)
+        actual=next((item.quantity for item in product.inventory if item.size.upper()==size),0) if size else product.total_stock
+        if quantity!=actual:
+            issue={'rule':'incorrect_stock_quantity','product_id':product.product_id,
+                   'size':size,'claimed':quantity,'actual':actual}
+            if issue not in issues:issues.append(issue)
+    availability_patterns=[
+        rf'\b(?P<size>{_SIZE_TEXT})\b\s+(?:(?P<aux>is|are|isn\'t|aren\'t)\s+)?(?:currently\s+)?(?P<negative>not\s+)?(?P<status>out of stock|in stock|unavailable|available)\b',
+        rf'\b(?P<status>out of stock|in stock|unavailable|available)\s+(?:in|for)\s+(?:size\s+)?(?P<size>{_SIZE_TEXT})\b',
+    ]
+    for pattern in availability_patterns:
+        for match in re.finditer(pattern,reply,re.I):
+            if any(start<match.end() and end>match.start() for start,end,_,_ in claims):continue
+            product=_claim_product(reply,match.start(),match.end(),deps.checked)
+            if product is None:continue
+            size=_size_key(match['size'])
+            quantity=next((item.quantity for item in product.inventory if item.size.upper()==size),0)
+            positive=match['status'].lower() in {'in stock','available'}
+            if match.groupdict().get('negative') or "n't" in (match.groupdict().get('aux') or ''):positive=not positive
+            if re.search(r"(?:not|isn't|aren't)\s+$",reply[max(0,match.start()-20):match.start()],re.I):positive=not positive
+            if positive!=(quantity>0):
+                issues.append({'rule':'incorrect_size_availability','product_id':product.product_id,
+                               'size':size,'claimed_available':positive,'actual_quantity':quantity})
+    return issues
 
 
 def build_agent(model=None) -> Agent:
@@ -167,6 +270,7 @@ def build_agent(model=None) -> Agent:
                       size: Annotated[str|None,Field(max_length=20)] = None) -> StockLookup:
         """Read quantities by size. Zero means out of stock; a missing size is not carried."""
         p=tools.lookup_product(product_id)
+        ctx.deps.stock_requests[product_id]=size.upper() if size else None
         stock=[s for s in p.inventory if size is None or s.size.upper()==size.upper()] if p else []
         if not p:message='No such catalogue product.'
         elif not stock:message='This size is not carried for this product.'
@@ -208,6 +312,14 @@ def build_agent(model=None) -> Agent:
                              'Rewrite as: The pictured design includes [checked design colors]. '
                              'Selectable color variants are not recorded, so I cannot verify pink availability. '
                              'Do not say available in or comes in a color; size stock statements are allowed.')
+        stock_issues=stock_grounding_issues(output.reply,ctx.deps)
+        if stock_issues:
+            tools.append_audit(ctx.deps.run_id,'output_validation',{'rule':'explicit_stock_grounding'},
+                               {'accepted':False,'action':'retry','issues':stock_issues})
+            raise ModelRetry('Correct the explicit stock claim using the checked product inventory. '
+                             'Do not change a zero into positive stock. Associate each quantity with its '
+                             'own product and size; say out of stock when quantity is zero. '
+                             'Verified discrepancies: '+json.dumps(stock_issues))
         amounts = re.findall(r'\$\s*(\d+(?:\.\d{1,2})?)',output.reply)
         verified={round(p.price,2) for p in ctx.deps.checked.values()} | ctx.deps.verified_budgets
         if any(round(float(amount),2) not in verified for amount in amounts):

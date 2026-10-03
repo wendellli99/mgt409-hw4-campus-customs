@@ -277,3 +277,83 @@ def test_unrecoverable_color_variant_claim_returns_503(client,monkeypatch):
 ])
 def test_color_guard_preserves_sizes_and_design_descriptions(reply,unsupported):
     assert agent.unsupported_color_variant_claim(reply,[]) is unsupported
+
+def test_explicit_stock_quantity_retries_wrong_xs_and_returns_correction(client,monkeypatch):
+    pid='champion-reverse-weave-hoodie-1'
+    attempts=[]
+    answers=[
+        'There are 7 in stock in XS for the Champion Reverse Weave Hoodie.',
+        'Champion Reverse Weave Hoodie 1 has 0 in stock in XS, so XS is out of stock.'
+    ]
+    def function(messages,info):
+        if not any(isinstance(part,ToolReturnPart) for message in messages for part in message.parts):
+            return ModelResponse(parts=[ToolCallPart('product_stock',{'product_id':pid,'size':'XS'})])
+        attempts.append(len(attempts))
+        return ModelResponse(parts=[ToolCallPart(info.output_tools[0].name,
+            {'reply':answers[min(len(attempts)-1,1)],'product_ids':[pid]})])
+    monkeypatch.setattr(agent,'_shop_agent',agent.build_agent(FunctionModel(function)))
+    r=client.post('/api/chat',json={'message':'How many XS do you have?', 'page_context':{'product_id':pid}})
+    assert r.status_code==200,r.text
+    assert len(attempts)==2 and r.json()['reply']==answers[1]
+    records=json.loads(tools.audit_path().read_text())
+    validation=next(row for row in records if row['tool_name']=='output_validation')
+    assert validation['args']['rule']=='explicit_stock_grounding'
+    assert validation['result']['issues']==[{'rule':'incorrect_stock_quantity','product_id':pid,'size':'XS','claimed':7,'actual':0}]
+    assert records[-1]['stop_reason']=='completed'
+
+
+def test_repeated_wrong_stock_quantity_returns_503(client,monkeypatch):
+    pid='champion-reverse-weave-hoodie-1'
+    model=scripted_model([('product_stock',{'product_id':pid,'size':'XS'})],
+                         'XS has 7 units in stock.',ids=[pid])
+    monkeypatch.setattr(agent,'_shop_agent',agent.build_agent(model))
+    r=client.post('/api/chat',json={'message':'XS stock?', 'page_context':{'product_id':pid}})
+    assert r.status_code==503
+    assert json.loads(tools.audit_path().read_text())[-1]['stop_reason']=='provider_or_run_failure'
+
+
+@pytest.mark.parametrize('reply,incorrect',[
+    ('XS: 7 in stock.',True),
+    ('XS has 7 units available.',True),
+    ('7 XS left.',True),
+    ('7 units left in XS.',True),
+    ('There are 7 in stock in XS.',True),
+    ('We have 7 in XS.',True),
+    ('XS — 7 available.',True),
+    ('7 available in size XS.',True),
+    ('XS is in stock.',True),
+    ('XS: 0; S: 25; M: 20; L: 20; XL: 0; XXL: 15.',False),
+    ('XS: 0 in stock. S has 25 units and M has 20 left.',False),
+    ('There are 0 units in stock in XS, so XS is out of stock.',False),
+    ('XS is not in stock. S is available.',False),
+    ("XS isn't available. M is in stock.",False),
+    ('XS is out of stock. The price is $68. Your budget is $80.',False),
+])
+def test_common_size_quantities_and_correct_multi_size_stock(client,reply,incorrect):
+    product=tools.lookup_product('champion-reverse-weave-hoodie-1')
+    deps=agent.ShopDeps(user=None,page_context=PageContext(product_id=product.product_id),
+                        checked={product.product_id:product},stock_requests={product.product_id:'XS'})
+    assert bool(agent.stock_grounding_issues(reply,deps)) is incorrect
+
+
+def test_stock_guard_checks_named_alternatives_against_their_own_inventory(client):
+    original=tools.lookup_product('champion-reverse-weave-hoodie-1')
+    alternative=tools.lookup_product('basic-hoodie-big-yale')
+    deps=agent.ShopDeps(user=None,page_context=PageContext(product_id=original.product_id),
+                        checked={p.product_id:p for p in [original,alternative]},
+                        stock_requests={original.product_id:'XS'},search_performed=True)
+    assert not agent.stock_grounding_issues(
+        'Champion Reverse Weave Hoodie 1: XS 0, S 25. Basic Hoodie Big Yale: XS 15, S 5.',deps)
+    assert not agent.stock_grounding_issues(
+        'Champion Reverse Weave Hoodie 1 has XS out of stock. Basic Hoodie Big Yale is available in XS with 15 units.',deps)
+    assert agent.stock_grounding_issues('Basic Hoodie Big Yale: XS 7 in stock.',deps)[0]['actual']==15
+
+
+def test_stock_guard_does_not_treat_search_counts_or_prices_as_stock(client):
+    product=tools.lookup_product('basic-hoodie-big-yale')
+    deps=agent.ShopDeps(user=None,page_context=PageContext(),checked={product.product_id:product},search_performed=True)
+    assert not agent.stock_grounding_issues('Here are 1 in stock. The price is $68.',deps)
+    assert not agent.stock_grounding_issues('I found 1 available in XS.',deps)
+    assert not agent.stock_grounding_issues(
+        'Here are 12 in-stock Yale hoodies, including pullover and full-zip styles. '
+        'Prices shown are $68–$88; 27 hoodie matches are currently in the catalogue.',deps)

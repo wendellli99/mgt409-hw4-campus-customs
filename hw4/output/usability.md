@@ -14,6 +14,6 @@ The catalogue tool accepts a budget, size, and availability constraints in addit
 
 ## Agent/backend 2 — Grounded answers with bounded work
 
-Price, descriptions, colors, and quantities come from read-only catalogue tools. The server rebuilds product cards from those observed lookups and validates selected IDs; it does not accept model-invented prices. Model request/tool limits and a timeout keep a conversation bounded. Provider failures produce a clear retry message rather than a made-up answer, helping customers trust the information and controlling operating cost.
+Price, descriptions, colors, and quantities come from read-only catalogue tools. The server rebuilds product cards from those observed lookups and validates selected IDs; it does not accept model-invented prices. Targeted output guards retry detected false color variants, explicit incorrect stock quantities, and incorrect size availability. Model request/tool limits and a timeout keep a conversation bounded. Provider failures produce a clear retry message rather than a made-up answer, helping customers trust the information and controlling operating cost.
 
 See app_check.html for screenshots from the running site and REQUIREMENTS_REVIEW.md for the final verification results.

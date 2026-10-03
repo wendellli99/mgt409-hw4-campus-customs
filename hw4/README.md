@@ -4,7 +4,14 @@ A Yale-inspired merchandise storefront with a React/Vite/TypeScript front end, F
 
 ## Place the local data pack
 
-Download the course Homework 4 data pack and extract it beside the project. The database and original product photographs stay local:
+Clone the public repository into a working folder. It already contains the required `hw4/` subdirectory:
+
+```bash
+git clone https://github.com/wendellli99/mgt409-hw4-campus-customs.git campus-customs-homework
+cd campus-customs-homework
+```
+
+Download the [course Homework 4 data pack](https://zlisto.github.io/mgt_409_fa26/data/hw4/data.zip) and extract it into `data/` at this repository root, beside `hw4/`. The database and original product photographs stay local:
 
 ```text
 working-folder/
@@ -17,9 +24,10 @@ working-folder/
     └── output/
 ```
 
-Use Python 3.11 or newer on macOS or Linux and Node.js 20.19+ or 22.12+. The audit writer uses Unix file locking. Open a terminal in hw4:
+Use Python 3.11 or newer on macOS or Linux and Node.js 20.19+ or 22.12+. The audit writer uses Unix file locking. From the repository root, enter hw4 and set up Python:
 
 ```bash
+cd hw4
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements.txt
@@ -39,7 +47,7 @@ uvicorn main:app --reload --port 8000
 
 ## Start the frontend
 
-In a second terminal:
+In a second terminal opened in hw4:
 
 ```bash
 cd frontend
@@ -58,9 +66,11 @@ The supplied test account is test@campuscustoms.yale.edu with password password.
 - output/usability.md and output/design.md: implemented usability and design choices.
 - output/audit_trail.json: retained, redacted agent activity across runs.
 - AI_prompts.md: the assignment request and four prepared working prompts for each of thirteen problems; the sequences are not a reconstructed transcript of separately typed messages.
-- REQUIREMENTS_REVIEW.md: per-problem completion evidence and remaining publication/submission steps.
+- REQUIREMENTS_REVIEW.md: per-problem verification, the public repository status, and remaining prompt-history/submission steps.
 
 ## Verify
+
+From hw4 with the Python virtual environment active:
 
 ```bash
 python -m pytest backend/tests -q
