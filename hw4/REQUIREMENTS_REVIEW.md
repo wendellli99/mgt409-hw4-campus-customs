@@ -16,7 +16,7 @@ Reviewed the scenario and all thirteen problem pages, including Panels A and B f
 | 10. Style | Creative storefront styling and design explanation | Navy/ivory/gold editorial design and merchandise hero; responsive cards; keyboard focus and reduced-motion support. output/design.md explains the choices. |
 | 11. App check | Three labeled real screenshots and relative image links | output/app_check.html contains seven screenshots, including all three required situations. All relative links resolve to real PNG files. |
 | 12. Audit/safety | Retained audit records, safety prompt, complete harness | Actual live runs retain start, tools, and terminal stop reasons in output/audit_trail.json. The safety prompt and harness document schema, APIs, dependencies, models, tools, limits, grounding, and logging. |
-| 13. GitHub/Canvas | Public GitHub repo with hw4 tree; no secret/data files; URL on Canvas | Local public-file package prepared for https://github.com/wendellli99/mgt409-hw4-campus-customs. Publication verification is the final packaging step. Canvas submission has not been performed. |
+| 13. GitHub/Canvas | Public GitHub repo with hw4 tree; no secret/data files; URL on Canvas | Published at https://github.com/wendellli99/mgt409-hw4-campus-customs. Anonymous cloning and every tracked-file hash were verified; the required hw4 tree is public and original data/secrets are excluded. Canvas submission has not been performed. |
 
 ## Verification performed October 3, 2026
 
@@ -25,6 +25,8 @@ Reviewed the scenario and all thirteen problem pages, including Panels A and B f
 - **Live model and browser checks passed** for stock, category search, clickable matches, price/size filters, account creation, returning history, contextual questions, and mobile layout. No simulated provider reply is presented as live evidence.
 - **Corrections from review:** Home initially requested a catalogue limit above the API maximum; it now retrieves its four featured items directly. Chat input length now matches the API's 2,000-character limit. Color descriptions no longer imply selectable variants; a targeted output guard retries detected false color-availability claims.
 - **Data boundaries:** the original catalogue/inventory data and product photographs remain local. The database acquired only application session/history/account writes. Public screenshots include a test-only account and required product views; the original database, image directory, data pack, keys, and generated dependencies are excluded.
+
+- **Public repository verified:** an anonymous clone of implementation commit `d1fb9ae39f3b9c4013994896086744452b1661d9` reproduced all 36 staged files byte for byte. A subsequent documentation commit records this result. Git exclusions and the public-file scan passed.
 
 ## Remaining student actions
 
