@@ -1,0 +1,33 @@
+# Credentials and local-only data
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+data/
+**/data/
+products/
+**/products/
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+*.sqlite3-*
+*.zip
+# Runtimes, builds and local captures
+.venv/
+venv/
+node_modules/
+dist/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.DS_Store
+.playwright-cli/
+output/playwright/
+*.log
+*.lock.tmp
+*.tmp
+output/audit_trail.lock
+*.tsbuildinfo

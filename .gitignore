@@ -1,0 +1,14 @@
+# Local course pack and downloaded references
+data/
+reference/
+.venv/
+.env
+.env.*
+!.env.example
+.DS_Store
+*.db
+*.db-*
+*.sqlite*
+**/node_modules/
+**/__pycache__/
+**/.playwright-cli/

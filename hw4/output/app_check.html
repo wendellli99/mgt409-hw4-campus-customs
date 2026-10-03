@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Campus Customs — app checks</title>
+<style>body{font:16px/1.6 system-ui,sans-serif;margin:0;color:#182f44;background:#faf9f5}main{max-width:1200px;margin:auto;padding:40px 24px}h1,h2{line-height:1.2}section{margin:48px 0}figure{margin:20px 0}img{display:block;max-width:100%;height:auto;border:1px solid #d4dbdf}figcaption{margin-top:10px;max-width:950px}code{background:#e9edf0;padding:2px 5px}.meta{color:#536572}.mobile{max-width:390px}</style>
+</head>
+<body><main>
+<h1>Campus Customs: running-site checks</h1>
+<p class="meta">Tested October 3, 2026 at <code>http://127.0.0.1:5173</code> with FastAPI on port 8000 and the real Portkey/PydanticAI agent. Screenshots are unedited browser captures; the original course SQLite catalogue and inventory supply the product facts.</p>
+<section id="inventory"><h2>1. Inventory lookup — price and out-of-stock size</h2>
+<figure><img src="app_check_images/inventory.png" alt="Champion hoodie detail with chatbot reporting $68 and zero XS stock"><figcaption>The shopper asks about “this hoodie” while viewing Champion Reverse Weave Hoodie 1. The live assistant returns the database price of $68.00 and correctly states that XS has zero stock; the detail page also marks XS sold out.</figcaption></figure></section>
+<section id="search"><h2>2. Dynamic search cards after a category question</h2>
+<figure><img src="app_check_images/dynamic_search.png" alt="Hoodie cards appear in the main page after Show me hoodies"><figcaption>The “Show me hoodies” starter makes a real catalogue search. Twelve capped matches appear as image/name/price cards in the main page, including $68 pullovers and $88 full-zips; the answer and card references come from that run's SQLite tool results.</figcaption></figure>
+<figure><img src="app_check_images/search_detail.png" alt="Basic Hoodie Big Yale detail opened by clicking a chat-created main-page card"><figcaption>Clicking the first dynamically generated main-page card opens Basic Hoodie Big Yale's normal detail page. Its large image, full description, $68 price, and actual per-size quantities verify that the chat-to-detail handoff works.</figcaption></figure></section>
+<section id="usability"><h2>3. Usability feature — budget, size, and availability filters</h2>
+<figure><img src="app_check_images/usability_filters.png" alt="Catalogue narrowed to hoodies in XS under $70 with in-stock checkbox checked"><figcaption>The implemented catalogue controls combine the hoodie query, size XS, price ceiling of $70, and “In stock only.” The page reports 20 matching pieces and offers a reset; unavailable XS items such as the Champion example are excluded.</figcaption></figure></section>
+<section id="memory"><h2>4. New account and returning conversation</h2>
+<figure><img src="app_check_images/account_history.png" alt="New test account returns to a saved conversation after logging out and back in"><figcaption>A new local test account was registered through the interface, logged out, and logged in again. Its own newly saved budget-search conversation reappears; the account name and saved-conversation label show that the server restored account-specific history.</figcaption></figure></section>
+<section id="design"><h2>5. Storefront and phone layout</h2>
+<figure><img src="app_check_images/home_desktop.png" alt="Desktop Campus Customs home with editorial real-product hero"><figcaption>The home page uses a navy/ivory visual identity and actual linked catalogue photos. The main navigation exposes the five required page destinations in the guest state.</figcaption></figure>
+<figure><img class="mobile" src="app_check_images/mobile_home.png" alt="Campus Customs storefront at 390-pixel phone width"><figcaption>The same storefront fits a 390-pixel phone viewport with a compact navigation control and floating chat entry. Independent phone checks also exercised size selection, contextual chat, Escape focus restoration, and logout without horizontal overflow.</figcaption></figure></section>
+<p class="meta">The offline backend tests separately cover account/password handling, cross-user history isolation, parameterized queries, grounded product IDs, provider failures, and retained audit entries. Creating these local artifacts does not submit the assignment on Canvas.</p>
+</main></body></html>
